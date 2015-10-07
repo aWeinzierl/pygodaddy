@@ -71,21 +71,19 @@ class GoDaddyClient(object):
     """
     def __init__(self):
         self.logged_in = False
+        self.login_url = 'https://sso.godaddy.com/v1/'
         self.default_url = 'https://dns.godaddy.com/default.aspx'
         self.zonefile_url = 'https://dns.godaddy.com/ZoneFile.aspx?zoneType=0&sa=&zone={domain}'
         self.zonefile_ws_url = 'https://dns.godaddy.com/ZoneFile_WS.asmx'
         self.session = requests.Session()
         self.sec=""
 
-    def is_loggedin(self, html=None):
+    def is_loggedin(self):
         """ Test login according to returned html, then set value to self.logged_in
-
-        :param html: the html content returned by self.session.get/post
         :returns: `True` if there's welcome message, else `False`
         """
-        if html is None:
-            html = self.session.get(self.default_url).text
-        self.logged_in = bool(re.compile(r'Welcome:&nbsp;<span id="ctl00_lblUser" .*?\>(.*)</span>').search(html))
+        html = self.session.get(self.zonefile_url).text
+        self.logged_in = bool(re.compile(r'DNS Manager - Zone File Editor').search(html))
         return self.logged_in
 
 
@@ -96,21 +94,11 @@ class GoDaddyClient(object):
         :param password: godaddy password
         :returns:  `True` if login is successful, else `False`
         """
-        r = self.session.get(self.default_url)
-        try:
-            viewstate = re.compile(r'id="__VIEWSTATE" value="([^"]+)"').search(r.text).group(1)
-        except:
-            logger.exception('Login routine broken, godaddy may have updated their login mechanism')
-            return False
-        data = {
-                'Login$userEntryPanel2$LoginImageButton.x' : 0,
-                'Login$userEntryPanel2$LoginImageButton.y' : 0,
-                'Login$userEntryPanel2$UsernameTextBox' : username,
-                'Login$userEntryPanel2$PasswordTextBox' : password,
-                '__VIEWSTATE': viewstate,
-        }
+        r = self.session.get(self.login_url)
+        data = {'realm':'idp','password':password,'name':username,'app':'fos'}
         r = self.session.post(r.url, data=data)
-        return self.is_loggedin(r.text)
+        logger.info('Client was able to log in: '+str(self.is_loggedin()))
+        return self.is_loggedin()
 
     def find_domains(self):
         """ return all domains of user """
